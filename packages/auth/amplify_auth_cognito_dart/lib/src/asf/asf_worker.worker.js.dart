@@ -30,8 +30,8 @@ class ASFWorkerImpl extends ASFWorker {
         .map(Uri.encodeComponent)
         .join('/');
     const relativePath = zDebugMode
-        ? 'packages/amplify_auth_cognito_dart/src/workers/workers.debug.dart.js'
-        : 'packages/amplify_auth_cognito_dart/src/workers/workers.release.dart.js';
+        ? 'packages/amplify_auth_cognito_dart/src/workers/workers.debug.dart2js.js'
+        : 'packages/amplify_auth_cognito_dart/src/workers/workers.release.dart2js.js';
     final testRelativePath = Uri(
       scheme: baseUri.scheme,
       host: baseUri.host,
