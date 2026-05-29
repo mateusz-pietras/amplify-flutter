@@ -28,9 +28,13 @@ const bool zProfileMode = bool.fromEnvironment('dart.vm.profile');
 /// Whether running in release mode.
 const bool zReleaseMode = bool.fromEnvironment('dart.vm.product');
 
-/// Whether running on the Web.
+/// Whether running on the Web (JavaScript via dart2js or WebAssembly via
+/// dart2wasm).
 ///
-/// Since JS does not support integers, an int and a double will be identical
-/// when representing the same value. However, this will not be true for all
-/// other compilation targets.
-const bool zIsWeb = identical(0, 0.0);
+/// Uses `dart.library.js_interop` which is defined as `true` in both JS and
+/// WASM web compilation targets, and `false` on native platforms.
+///
+/// The previous `identical(0, 0.0)` heuristic relied on JavaScript's lack of
+/// distinct integer types, but returns `false` in WebAssembly where `int` and
+/// `double` are properly distinct — incorrectly indicating "not web".
+const bool zIsWeb = bool.fromEnvironment('dart.library.js_interop');
