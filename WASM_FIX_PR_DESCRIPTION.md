@@ -29,6 +29,11 @@ ParallelWaitError: Unsupported operation: Platform._operatingSystem
 
 4. **Build configuration** — Add `dart2wasm_args` to `build.yaml` files and extend `worker_copy_builder` patterns for WASM outputs
 
+5. **Full monorepo audit** — Identified and fixed all remaining files with `io`-before-`js_interop` conditional imports:
+   - `auth/amplify_auth_cognito_dart` — `asf_device_info_collector.dart` (critical: signIn crash)
+   - `api/amplify_api_dart` — `is_windows/is_windows.dart` (WebSocket blob policy)
+   - `aws_common` — `aws_config_value.dart`, `aws_path_provider.dart`, `config_file/file_loader.dart`
+
 ## Related Issues
 
 - **Fixes** #6350 — WebAssembly Support
@@ -47,13 +52,13 @@ Both upstream blockers have been resolved and released (`crypto 3.0.7`, `build_w
 
 | Package | Change |
 |---------|--------|
-| `aws_common` | Fix `zIsWeb` constant, add `dart2wasm_args` to `build.yaml`, add unit tests |
+| `aws_common` | Fix `zIsWeb` constant; fix `aws_config_value.dart`, `aws_path_provider.dart`, `config_file/file_loader.dart` import guards; add `dart2wasm_args` to `build.yaml`; add unit tests |
 | `amplify_core` | Fix conditional export order in `platform.dart`, add `dart2wasm_args` to `build.yaml` |
-| `amplify_auth_cognito_dart` | Update worker fallback URLs, extend `build.yaml` for WASM outputs |
+| `amplify_auth_cognito_dart` | Fix `asf_device_info_collector.dart` import order; update worker fallback URLs; extend `build.yaml` for WASM outputs |
+| `amplify_api_dart` | Fix `is_windows/is_windows.dart` export guard; add `dart2wasm_args` to `build.yaml` |
 | `amplify_secure_storage_dart` | Update worker fallback URLs, extend `build.yaml` for WASM outputs |
 | `aws_signature_v4` | Add `dart2wasm_args` to `build.yaml` |
 | `amplify_analytics_pinpoint_dart` | Add `dart2wasm_args` to `build.yaml` |
-| `amplify_api_dart` | Add `dart2wasm_args` to `build.yaml` |
 | `amplify_auth_cognito_test` | Add `dart2wasm_args` to `build.yaml` |
 | `amplify_secure_storage_test` | Add `dart2wasm_args` to `build.yaml` |
 | `worker_bee/e2e` | Extend `build.yaml` for WASM outputs |
@@ -66,6 +71,7 @@ Both upstream blockers have been resolved and released (`crypto 3.0.7`, `build_w
 - ✅ `dart test` passes on `aws_common` (264 tests, 0 failures)
 - ✅ `dart analyze lib/` passes on `amplify_core` (0 new issues)
 - ✅ `dart test` passes on `amplify_core` (156 tests, 0 failures)
+- ✅ `dart analyze lib/src/graphql/web_socket/blocs/is_windows/` passes on `amplify_api_dart` (0 issues)
 - ✅ New `globals_test.dart` verifies `zIsWeb` behavior on VM
 
 ### Manual

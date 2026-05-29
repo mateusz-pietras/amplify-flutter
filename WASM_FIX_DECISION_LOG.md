@@ -187,3 +187,95 @@ cd build/web && python3 -m http.server 8080
 # Open http://localhost:8080 in Chrome ≥119
 # Verify: no console errors, app initializes, auth works
 ```
+
+---
+
+## 8. Comprehensive WASM Audit — Additional Fixes (Commit 7)
+
+After the original 6 commits, a full monorepo audit was performed to find every remaining location where `dart.library.io` was checked before `dart.library.js_interop`. Five additional files were found and fixed.
+
+### Audit Methodology
+
+Searched across all `packages/*/lib`, `packages/*/*/lib`, and `packages/*/*/*/lib` for:
+- `dart.library.io` appearing as first condition in a multi-condition export/import
+- `Platform.*` calls without a `zIsWeb` guard
+- `dart:html` imports (these are `dart2js`-only, will fail in WASM unless guarded)
+
+### Additional Files Fixed
+
+#### Bug 1: `auth/amplify_auth_cognito_dart/lib/src/asf/asf_device_info_collector.dart` — CRITICAL
+
+**Severity**: Critical — triggers on every `signIn` call  
+**Symptom**: ASF (Advanced Security Features) device info collection crashes with `Platform.operatingSystem` in WASM  
+**Root cause**: Conditional import had `if (dart.library.io)` before `if (dart.library.js_interop)`, loading the VM implementation in WASM  
+
+```dart
+// Before (broken):
+import '...asf_device_info_collector.stub.dart'
+    if (dart.library.io) '...asf_device_info_collector.vm.dart'
+    if (dart.library.js_interop) '...asf_device_info_collector.js.dart';
+
+// After (correct):
+import '...asf_device_info_collector.stub.dart'
+    if (dart.library.js_interop) '...asf_device_info_collector.js.dart'
+    if (dart.library.io) '...asf_device_info_collector.vm.dart';
+```
+
+#### Bug 2: `api/amplify_api_dart/lib/src/graphql/web_socket/blocs/is_windows/is_windows.dart` — HIGH
+
+**Severity**: High — affects WebSocket connections  
+**Symptom**: `Platform.isWindows` called in WASM when determining WebSocket blob policy  
+**Root cause**: `io`-only export with no web stub guard  
+
+```dart
+// Before (broken):
+export 'is_windows_stub.dart'
+    if (dart.library.io) 'is_windows_io.dart';
+
+// After (correct):
+export 'is_windows_stub.dart'
+    if (dart.library.js_interop) 'is_windows_stub.dart'
+    if (dart.library.io) 'is_windows_io.dart';
+```
+
+#### Bug 3: `aws_common/lib/src/config/aws_config_value.dart` — MEDIUM
+
+**Severity**: Medium — affects AWS config loading  
+**Symptom**: `Platform.environment` lookup crashes in WASM during config file parsing  
+**Root cause**: `io`-only import+export, no web stub guard  
+**Fix**: Added `if (dart.library.js_interop) 'aws_config_stub.dart'` as first condition in both `import` and `export`
+
+#### Bug 4: `aws_common/lib/src/config/aws_path_provider.dart` — LOW-MEDIUM
+
+**Severity**: Low-Medium — affects home directory resolution  
+**Symptom**: Loads `aws_path_provider_io.dart` in WASM (which uses `Platform.environment` for `HOME`)  
+**Root cause**: `io`-only import, no web stub guard  
+**Fix**: Added `if (dart.library.js_interop) 'aws_path_provider_stub.dart'` as first condition
+
+#### Bug 5: `aws_common/lib/src/config/config_file/file_loader.dart` — LOW
+
+**Severity**: Low — only triggered for CLI-style AWS profile loading  
+**Symptom**: `file_loader_io.dart` loaded in WASM; accesses filesystem via `Platform.environment` + `dart:io`  
+**Root cause**: `io`-only import, no web stub guard  
+**Fix**: Added `if (dart.library.js_interop) 'file_loader_stub.dart'` as first condition
+
+### Packages NOT Requiring Changes
+
+| Package | Reason |
+|---------|--------|
+| `amplify_flutter` | Uses `zIsWeb` from `aws_common` — fixed by Commit 1 |
+| `amplify_secure_storage_dart` | Workers updated in Commit 3; plugin impl has correct guards |
+| `amplify_analytics_pinpoint_dart` | No `Platform.*` calls, uses `zIsWeb` guards correctly |
+| `amplify_storage_s3_dart` | No `Platform.*` calls in conditional imports |
+| `aws_common/src/util/crc64nvme.dart` | `if (dart.library.io)` after `js` is CORRECT here — WASM has native i64 support and should use the VM implementation |
+| `amplify_auth_cognito_dart/src/platform/hosted_ui_platform_flutter.dart` | Selected via `dart.library.ui` which is NOT true in WASM; in WASM `hosted_ui_platform_html.dart` is selected (correctly) |
+| `legacy_credential_provider_impl.dart` | Has `if (zIsWeb) return null;` guard before any `Platform.*` call — safe after Commit 1 |
+
+### Updated Test Results (Post All 7 Commits)
+
+| Package | `dart analyze` | `dart test` |
+|---------|----------------|-------------|
+| `aws_common` | ✅ 0 issues | ✅ 264 pass |
+| `amplify_core` | ✅ 0 new issues | ✅ 156 pass |
+| `amplify_api_dart` (is_windows only) | ✅ 0 issues | N/A (WebSocket only) |
+| `amplify_auth_cognito_dart` (asf only) | ✅ Our files: 0 issues (45 pre-existing unrelated) | N/A (pre-existing failures unrelated) |
