@@ -5,3 +5,5 @@ targets:
         release_options:
           dart2js_args:
             - --define=dart.vm.product=true
+          dart2wasm_args:
+            - --define=dart.vm.product=true
