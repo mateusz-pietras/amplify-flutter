@@ -40,12 +40,8 @@ targets:
         generate_for:
           - lib/*.debug.dart.js
           - lib/*.debug.dart.js.map
-          - lib/*.debug.dart2js.js
-          - lib/*.debug.dart2js.js.map
           - lib/*.release.dart.js
           - lib/*.release.dart.js.map
-          - lib/*.release.dart2js.js
-          - lib/*.release.dart2js.js.map
           - lib/*.debug.wasm
           - lib/*.debug.wasm.map
           - lib/*.debug.mjs
