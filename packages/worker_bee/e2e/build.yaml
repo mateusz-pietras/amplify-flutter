@@ -42,6 +42,12 @@ targets:
           - lib/*.debug.dart.js.map
           - lib/*.release.dart.js
           - lib/*.release.dart.js.map
+          - lib/*.debug.wasm
+          - lib/*.debug.wasm.map
+          - lib/*.debug.mjs
+          - lib/*.release.wasm
+          - lib/*.release.wasm.map
+          - lib/*.release.mjs
     dependencies:
       - e2e:debug
       - e2e:release

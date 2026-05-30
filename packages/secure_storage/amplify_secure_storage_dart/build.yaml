@@ -49,6 +49,12 @@ targets:
           - lib/src/worker/*.debug.dart.js.map
           - lib/src/worker/*.release.dart.js
           - lib/src/worker/*.release.dart.js.map
+          - lib/src/worker/*.debug.wasm
+          - lib/src/worker/*.debug.wasm.map
+          - lib/src/worker/*.debug.mjs
+          - lib/src/worker/*.release.wasm
+          - lib/src/worker/*.release.wasm.map
+          - lib/src/worker/*.release.mjs
     dependencies:
       - amplify_secure_storage_dart:debug
       - amplify_secure_storage_dart:release
