@@ -12,4 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export 'is_windows_stub.dart' if (dart.library.io) 'is_windows_io.dart';
+export 'is_windows_stub.dart'
+    if (dart.library.js_interop) 'is_windows_stub.dart'
+    if (dart.library.io) 'is_windows_io.dart';
