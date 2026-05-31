@@ -297,7 +297,17 @@ mixin WorkerBeeImpl<Request extends Object, Response>
             }),
           );
 
-          _worker!.postMessage(name.toJS, [jsLogsChannel.port2].toJS);
+          // Use StructuredSerializeOptions with an explicit transfer array to
+          // ensure the MessagePort is correctly transferred in both dart2js and
+          // dart2wasm. The legacy `postMessage(msg, [port].toJS)` form may
+          // silently fail in dart2wasm because the JSArray is not recognized as
+          // a native transferable list by all browser implementations.
+          _worker!.postMessage(
+            name.toJS,
+            StructuredSerializeOptions(
+              transfer: [jsLogsChannel.port2 as JSObject].toJS,
+            ),
+          );
 
           await Future.any<void>([ready.future, errorBeforeReady.future]);
 
