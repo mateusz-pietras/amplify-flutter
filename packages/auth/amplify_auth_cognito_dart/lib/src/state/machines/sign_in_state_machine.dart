@@ -31,7 +31,6 @@ import 'package:amplify_auth_cognito_dart/src/state/state.dart';
 import 'package:amplify_core/amplify_core.dart';
 // ignore: implementation_imports
 import 'package:amplify_core/src/config/amplify_outputs/auth/auth_outputs.dart';
-import 'package:async/async.dart';
 import 'package:built_collection/built_collection.dart';
 import 'package:meta/meta.dart';
 
@@ -103,14 +102,46 @@ final class SignInStateMachine
   /// alias where one or more user attributes can be used to identify a user.
   String get providedUsername => parameters.username;
 
-  // Lazy initializers for worker types.
-  final AsyncMemoizer<SrpInitWorker> _initWorkerMemoizer = AsyncMemoizer();
-  final AsyncMemoizer<SrpPasswordVerifierWorker>
-  _passwordVerifierWorkerMemoizer = AsyncMemoizer();
-  final AsyncMemoizer<SrpDevicePasswordVerifierWorker>
-  _devicePasswordVerifierWorkerMemoizer = AsyncMemoizer();
-  final AsyncMemoizer<ConfirmDeviceWorker> _confirmDeviceWorkerMemoizer =
-      AsyncMemoizer();
+  bool _isAddAfterCloseStateError(StateError err) {
+    return '$err'.contains('Cannot add event after closing');
+  }
+
+  Future<SrpInitWorker> _spawnInitWorker() async {
+    final worker = SrpInitWorker.create();
+    final logger = this.logger.createChild(worker.name);
+    worker.logs.listen((entry) => _logWorkerBeeMessage(logger, entry));
+    await worker.spawn();
+    addInstance<SrpInitWorker>(worker);
+    return worker;
+  }
+
+  Future<SrpPasswordVerifierWorker> _spawnPasswordVerifierWorker() async {
+    final worker = SrpPasswordVerifierWorker.create();
+    final logger = this.logger.createChild(worker.name);
+    worker.logs.listen((entry) => _logWorkerBeeMessage(logger, entry));
+    await worker.spawn();
+    addInstance<SrpPasswordVerifierWorker>(worker);
+    return worker;
+  }
+
+  Future<SrpDevicePasswordVerifierWorker>
+  _spawnDevicePasswordVerifierWorker() async {
+    final worker = SrpDevicePasswordVerifierWorker.create();
+    final logger = this.logger.createChild(worker.name);
+    worker.logs.listen((entry) => _logWorkerBeeMessage(logger, entry));
+    await worker.spawn();
+    addInstance<SrpDevicePasswordVerifierWorker>(worker);
+    return worker;
+  }
+
+  Future<ConfirmDeviceWorker> _spawnConfirmDeviceWorker() async {
+    final worker = ConfirmDeviceWorker.create();
+    final logger = this.logger.createChild(worker.name);
+    worker.logs.listen((entry) => _logWorkerBeeMessage(logger, entry));
+    await worker.spawn();
+    addInstance<ConfirmDeviceWorker>(worker);
+    return worker;
+  }
 
   void _logWorkerBeeMessage(AWSLogger logger, LogEntry logEntry) {
     logger.log(
@@ -122,71 +153,62 @@ final class SignInStateMachine
   }
 
   /// The SRP init worker.
-  Future<SrpInitWorker> get initWorker async =>
-      _initWorkerMemoizer.runOnce(() async {
-        var worker = get<SrpInitWorker>();
-        if (worker != null) {
-          return worker;
-        }
-        worker = SrpInitWorker.create();
-        final logger = this.logger.createChild(worker.name);
-        worker.logs.listen((entry) => _logWorkerBeeMessage(logger, entry));
-        await worker.spawn();
-        addInstance<SrpInitWorker>(worker);
-        return worker;
-      });
+  Future<SrpInitWorker> get initWorker async {
+    final worker = get<SrpInitWorker>();
+    if (worker != null && !worker.isCompleted) {
+      return worker;
+    }
+    return _spawnInitWorker();
+  }
 
   /// Creates the initial SRP public/private values used in SRP handshakes.
   Future<SrpInitResult> _initSrp() async {
-    final worker = await initWorker;
-    worker.add(SrpInitMessage());
-    return worker.stream.first;
+    try {
+      final worker = await initWorker;
+      worker.add(SrpInitMessage());
+      return worker.stream.first;
+    } on StateError catch (err, st) {
+      if (!_isAddAfterCloseStateError(err)) {
+        rethrow;
+      }
+      logger.debug(
+        'SRP init worker sink was closed. Respawning and retrying once.',
+        err,
+        st,
+      );
+      final worker = await _spawnInitWorker();
+      worker.add(SrpInitMessage());
+      return worker.stream.first;
+    }
   }
 
   /// The SRP password verifier worker.
-  Future<SrpPasswordVerifierWorker> get passwordVerifierWorker =>
-      _passwordVerifierWorkerMemoizer.runOnce(() async {
-        var worker = get<SrpPasswordVerifierWorker>();
-        if (worker != null) {
-          return worker;
-        }
-        worker = SrpPasswordVerifierWorker.create();
-        final logger = this.logger.createChild(worker.name);
-        worker.logs.listen((entry) => _logWorkerBeeMessage(logger, entry));
-        await worker.spawn();
-        addInstance<SrpPasswordVerifierWorker>(worker);
-        return worker;
-      });
+  Future<SrpPasswordVerifierWorker> get passwordVerifierWorker async {
+    final worker = get<SrpPasswordVerifierWorker>();
+    if (worker != null && !worker.isCompleted) {
+      return worker;
+    }
+    return _spawnPasswordVerifierWorker();
+  }
 
   /// The SRP device password verifier worker.
-  Future<SrpDevicePasswordVerifierWorker> get devicePasswordVerifierWorker =>
-      _devicePasswordVerifierWorkerMemoizer.runOnce(() async {
-        var worker = get<SrpDevicePasswordVerifierWorker>();
-        if (worker != null) {
-          return worker;
-        }
-        worker = SrpDevicePasswordVerifierWorker.create();
-        final logger = this.logger.createChild(worker.name);
-        worker.logs.listen((entry) => _logWorkerBeeMessage(logger, entry));
-        await worker.spawn();
-        addInstance<SrpDevicePasswordVerifierWorker>(worker);
-        return worker;
-      });
+  Future<SrpDevicePasswordVerifierWorker>
+  get devicePasswordVerifierWorker async {
+    final worker = get<SrpDevicePasswordVerifierWorker>();
+    if (worker != null && !worker.isCompleted) {
+      return worker;
+    }
+    return _spawnDevicePasswordVerifierWorker();
+  }
 
   /// The confirm device worker.
-  Future<ConfirmDeviceWorker> get confirmDeviceWorker =>
-      _confirmDeviceWorkerMemoizer.runOnce(() async {
-        var worker = get<ConfirmDeviceWorker>();
-        if (worker != null) {
-          return worker;
-        }
-        worker = ConfirmDeviceWorker.create();
-        final logger = this.logger.createChild(worker.name);
-        worker.logs.listen((entry) => _logWorkerBeeMessage(logger, entry));
-        await worker.spawn();
-        addInstance<ConfirmDeviceWorker>(worker);
-        return worker;
-      });
+  Future<ConfirmDeviceWorker> get confirmDeviceWorker async {
+    final worker = get<ConfirmDeviceWorker>();
+    if (worker != null && !worker.isCompleted) {
+      return worker;
+    }
+    return _spawnConfirmDeviceWorker();
+  }
 
   // Current flow state
   AuthenticationResultType? _authenticationResult;
@@ -441,8 +463,22 @@ final class SignInStateMachine
             ..password = password,
         );
     });
-    worker.sink.add(workerMessage);
-    return worker.stream.first;
+    try {
+      worker.sink.add(workerMessage);
+      return worker.stream.first;
+    } on StateError catch (err, st) {
+      if (!_isAddAfterCloseStateError(err)) {
+        rethrow;
+      }
+      logger.debug(
+        'SRP password verifier worker sink was closed. Respawning and retrying once.',
+        err,
+        st,
+      );
+      final retryWorker = await _spawnPasswordVerifierWorker();
+      retryWorker.sink.add(workerMessage);
+      return retryWorker.stream.first;
+    }
   }
 
   /// Creates the device SRP auth request to initiate the device SRP flow.
@@ -481,8 +517,22 @@ final class SignInStateMachine
         ..clientSecret = _authOutputs.appClientSecret
         ..challengeParameters = BuiltMap(_publicChallengeParameters);
     });
-    worker.sink.add(workerMessage);
-    return worker.stream.first;
+    try {
+      worker.sink.add(workerMessage);
+      return worker.stream.first;
+    } on StateError catch (err, st) {
+      if (!_isAddAfterCloseStateError(err)) {
+        rethrow;
+      }
+      logger.debug(
+        'Device SRP verifier worker sink was closed. Respawning and retrying once.',
+        err,
+        st,
+      );
+      final retryWorker = await _spawnDevicePasswordVerifierWorker();
+      retryWorker.sink.add(workerMessage);
+      return retryWorker.stream.first;
+    }
   }
 
   /// Creates the response object for an SMS MFA challenge.
@@ -1116,14 +1166,25 @@ final class SignInStateMachine
     String accessToken,
     NewDeviceMetadataType newDeviceMetadata,
   ) async {
-    final worker = await confirmDeviceWorker;
-    worker.add(
-      ConfirmDeviceMessage(
-        (b) => b
-          ..accessToken = accessToken
-          ..newDeviceMetadata.replace(newDeviceMetadata),
-      ),
+    final workerMessage = ConfirmDeviceMessage(
+      (b) => b
+        ..accessToken = accessToken
+        ..newDeviceMetadata.replace(newDeviceMetadata),
     );
+    var worker = await confirmDeviceWorker;
+    try {
+      worker.add(workerMessage);
+    } on StateError catch (err, st) {
+      if (!_isAddAfterCloseStateError(err)) {
+        rethrow;
+      }
+      logger.debug(
+        'Confirm-device worker sink was closed. Respawning and retrying once.',
+        err,
+        st,
+      );
+      worker = (await _spawnConfirmDeviceWorker())..add(workerMessage);
+    }
     final workerResult = await worker.stream.first;
     final response = await cognitoIdentityProvider
         .confirmDevice(workerResult.request)
