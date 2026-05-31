@@ -39,15 +39,26 @@ Future<WorkerAssignment> getWorkerAssignment() async {
     void onMessage(MessageEvent event) {
       final eventData = event.data;
 
-      final messagePort = event.ports.toDart.firstOrNull;
-      if (eventData.isA<JSString>() && messagePort is MessagePort) {
+      if (eventData.isA<JSString>()) {
         eventData as JSString;
         final state = eventData.toDart;
 
         self.removeEventListener('message', jsOnMessageCallback);
-        assignmentCompleter.complete(
-          WorkerAssignment(state, MessagePortChannel<LogEntry>(messagePort)),
-        );
+
+        final messagePort = event.ports.toDart.firstOrNull;
+        final StreamChannel<LogEntry> logsChannel;
+        if (messagePort is MessagePort) {
+          logsChannel = MessagePortChannel<LogEntry>(messagePort);
+        } else {
+          // When MessagePort transfer is not available (e.g. dart2wasm main
+          // thread), fall back to a no-op logs channel. Auth operations still
+          // work; only log forwarding to the main thread is skipped.
+          logsChannel = StreamChannel<LogEntry>(
+            const Stream.empty(),
+            NullStreamSink(),
+          );
+        }
+        assignmentCompleter.complete(WorkerAssignment(state, logsChannel));
       } else {
         assignmentCompleter.completeError(
           StateError(
