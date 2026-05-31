@@ -121,9 +121,15 @@ final class SignInStateMachine
       }
       previous = worker;
       try {
+        await worker.ready.future;
         send(worker);
         return await worker.stream.first;
-      } on StateError {
+      } on StateError catch (_) {
+        await worker.close(force: true);
+        if (attempt == maxAttempts - 1) {
+          rethrow;
+        }
+      } on WorkerBeeException catch (_) {
         await worker.close(force: true);
         if (attempt == maxAttempts - 1) {
           rethrow;
