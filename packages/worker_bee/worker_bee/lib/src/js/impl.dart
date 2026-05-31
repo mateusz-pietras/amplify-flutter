@@ -321,7 +321,31 @@ mixin WorkerBeeImpl<Request extends Object, Response>
         }
       }
 
-      throw WorkerBeeExceptionImpl('Could not launch web worker.');
+      // All worker URLs failed. Fall back to running the worker's logic
+      // inline on the main thread. This graceful degradation ensures
+      // functionality (e.g. auth SRP) works even when Web Workers cannot be
+      // spawned — for example in dart2wasm mode where worker initialization
+      // may fail due to MessagePort transfer limitations.
+      logger.debug(
+        'All worker URLs failed. Running inline (single-threaded mode).',
+      );
+
+      // ignore: close_sinks
+      final requestController = StreamController<Request>(sync: true);
+      // ignore: close_sinks
+      final responseController = StreamController<Response>(sync: true);
+
+      stream = responseController.stream;
+      sink = requestController.sink;
+
+      unawaited(
+        run(requestController.stream, responseController.sink).then(
+          complete,
+          onError: completeError,
+        ),
+      );
+
+      ready.complete();
     }, onError: completeError);
   }
 
