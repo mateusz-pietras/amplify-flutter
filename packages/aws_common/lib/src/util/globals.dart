@@ -38,3 +38,9 @@ const bool zReleaseMode = bool.fromEnvironment('dart.vm.product');
 /// distinct integer types, but returns `false` in WebAssembly where `int` and
 /// `double` are properly distinct — incorrectly indicating "not web".
 const bool zIsWeb = bool.fromEnvironment('dart.library.js_interop');
+
+/// Whether the app was compiled with dart2wasm for the web.
+///
+/// `true` only for WebAssembly web builds (`dart.tool.dart2wasm`); `false` for
+/// the Dart VM, dart2js, and native platforms.
+const bool zIsWasm = bool.fromEnvironment('dart.tool.dart2wasm');

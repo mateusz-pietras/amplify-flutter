@@ -54,5 +54,16 @@ void main() {
         expect(zIsFlutter, isFalse);
       });
     });
+
+    group('zIsWasm', () {
+      test('is false on Dart VM (test runtime)', () {
+        expect(zIsWasm, isFalse);
+      });
+
+      test('is a compile-time constant', () {
+        const wasm = zIsWasm;
+        expect(wasm, isFalse);
+      });
+    });
   });
 }

@@ -6,6 +6,8 @@ import 'dart:js_interop';
 
 // ignore: implementation_imports
 import 'package:aws_common/src/js/common.dart';
+// ignore: implementation_imports
+import 'package:aws_common/src/util/globals.dart';
 import 'package:built_value/serializer.dart';
 import 'package:meta/meta.dart';
 import 'package:web/web.dart';
@@ -153,10 +155,40 @@ mixin WorkerBeeImpl<Request extends Object, Response>
     }, onError: completeError);
   }
 
+  void _spawnInline({required bool allWorkerUrlsFailed}) {
+    if (allWorkerUrlsFailed) {
+      logger.debug(
+        'All worker URLs failed. Running inline (single-threaded mode).',
+      );
+    }
+
+    // ignore: close_sinks
+    final requestController = StreamController<Request>(sync: true);
+    // ignore: close_sinks
+    final responseController = StreamController<Response>(sync: true);
+
+    stream = responseController.stream;
+    sink = requestController.sink;
+
+    unawaited(
+      run(
+        requestController.stream,
+        responseController.sink,
+      ).then(complete, onError: completeError),
+    );
+
+    ready.complete();
+  }
+
   @override
   @nonVirtual
   Future<void> spawn({String? jsEntrypoint}) async {
     return runTraced(() async {
+      if (zIsWasm) {
+        _spawnInline(allWorkerUrlsFailed: false);
+        return;
+      }
+
       final shouldUseFallbackUrls = !(jsEntrypoint ?? this.jsEntrypoint)
           .startsWith('assets/packages/');
       final entrypoints = <String>[
@@ -331,31 +363,7 @@ mixin WorkerBeeImpl<Request extends Object, Response>
         }
       }
 
-      // All worker URLs failed. Fall back to running the worker's logic
-      // inline on the main thread. This graceful degradation ensures
-      // functionality (e.g. auth SRP) works even when Web Workers cannot be
-      // spawned — for example in dart2wasm mode where worker initialization
-      // may fail due to MessagePort transfer limitations.
-      logger.debug(
-        'All worker URLs failed. Running inline (single-threaded mode).',
-      );
-
-      // ignore: close_sinks
-      final requestController = StreamController<Request>(sync: true);
-      // ignore: close_sinks
-      final responseController = StreamController<Response>(sync: true);
-
-      stream = responseController.stream;
-      sink = requestController.sink;
-
-      unawaited(
-        run(
-          requestController.stream,
-          responseController.sink,
-        ).then(complete, onError: completeError),
-      );
-
-      ready.complete();
+      _spawnInline(allWorkerUrlsFailed: true);
     }, onError: completeError);
   }
 
