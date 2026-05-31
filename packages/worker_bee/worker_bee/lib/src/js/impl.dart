@@ -157,11 +157,21 @@ mixin WorkerBeeImpl<Request extends Object, Response>
   @nonVirtual
   Future<void> spawn({String? jsEntrypoint}) async {
     return runTraced(() async {
-      for (final entrypoint in [
+      final shouldUseFallbackUrls = !(jsEntrypoint ?? this.jsEntrypoint)
+          .startsWith('assets/packages/');
+      final entrypoints = <String>[
         ?jsEntrypoint,
         this.jsEntrypoint,
-        ...fallbackUrls,
-      ]) {
+        if (shouldUseFallbackUrls) ...fallbackUrls,
+      ];
+
+      if (!shouldUseFallbackUrls) {
+        logger.debug(
+          'Skipping generated fallback URLs for Flutter asset worker entrypoint.',
+        );
+      }
+
+      for (final entrypoint in entrypoints) {
         logger.debug('Spawning worker at $entrypoint');
 
         // Spawn the worker using the specified script.
@@ -339,10 +349,10 @@ mixin WorkerBeeImpl<Request extends Object, Response>
       sink = requestController.sink;
 
       unawaited(
-        run(requestController.stream, responseController.sink).then(
-          complete,
-          onError: completeError,
-        ),
+        run(
+          requestController.stream,
+          responseController.sink,
+        ).then(complete, onError: completeError),
       );
 
       ready.complete();
