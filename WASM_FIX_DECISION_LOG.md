@@ -37,6 +37,7 @@ The fix consists of:
 | 7 | Did NOT restructure worker `debug`/`release` targets to remove `compiler: dart2js` | Workers run as Web Workers (separate JS execution context). Even in a WASM app, workers can be JS. Full WASM worker compilation is a separate enhancement |
 | 8 | Did NOT modify `dart:io` imports anywhere | They're legal in WASM (the library exists but is stubbed). The `zIsWeb` guard properly prevents `Platform.*` calls from being reached |
 | 9 | Added unit tests for `zIsWeb` on VM only | WASM verification requires actual `flutter build web --wasm` which is a manual step. VM tests confirm the constant works correctly on the non-web side |
+| 10 | Reverted `zIsWasm` `_spawnInline` and all-URLs-failed inline fallback (`125bbfe23`) | Inline spawn caused sign-in hangs (sync secure-storage dispatch before Cognito). WASM apps use the same JS `workers.min.js` Web Workers as upstream (Decision #7). Provisioning failure throws `WorkerBeeException` instead of silent inline mode |
 
 ---
 
