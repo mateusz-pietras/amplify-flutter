@@ -226,7 +226,23 @@ abstract class WorkerBeeCommon<Request extends Object, Response>
   Future<Result<Response?>> get result => _resultCompleter.future;
 
   /// Add an event to the worker's [sink].
-  void add(Request event) => sink.add(event);
+  void add(Request event) {
+    if (isCompleted) {
+      throw WorkerBeeExceptionImpl(
+        'Worker is closed',
+        StackTrace.current,
+      );
+    }
+    try {
+      sink.add(event);
+    } on StateError catch (err, st) {
+      final message = err.message;
+      if (message != null && message.contains('closing')) {
+        throw WorkerBeeExceptionImpl('Worker is closed', st);
+      }
+      rethrow;
+    }
+  }
 
   final AsyncMemoizer<void> _closeMemoizer = AsyncMemoizer();
 

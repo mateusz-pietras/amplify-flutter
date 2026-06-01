@@ -105,11 +105,16 @@ final class SignInStateMachine
 
   static const _workerDispatchTimeout = Duration(seconds: 10);
 
+  static bool _isWorkerClosedStateError(StateError err) {
+    final message = err.message;
+    return message != null && message.contains('closing');
+  }
+
   Future<R> _dispatchWorkerRequest<W extends WorkerBeeBase<Object, R>, R>({
     required Future<W> Function() spawnWorker,
     required void Function(W worker) send,
   }) async {
-    const maxAttempts = 2;
+    const maxAttempts = 3;
     W? previous;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       final prior = previous;
@@ -124,6 +129,10 @@ final class SignInStateMachine
       previous = worker;
       try {
         await worker.ready.future;
+        if (worker.isCompleted) {
+          await worker.close(force: true);
+          continue;
+        }
         // Listen before send so a fast worker response cannot be dropped on the stream.
         final responseFuture = worker.stream.first;
         send(worker);
@@ -133,7 +142,10 @@ final class SignInStateMachine
             throw StateError('SRP worker dispatch timed out');
           },
         );
-      } on StateError catch (_) {
+      } on StateError catch (err) {
+        if (!_isWorkerClosedStateError(err)) {
+          rethrow;
+        }
         await worker.close(force: true);
         if (attempt == maxAttempts - 1) {
           rethrow;
