@@ -122,8 +122,9 @@ class AmplifySecureStorageWorker extends AmplifySecureStorageInterface
     _worker = SecureStorageWorker.create();
     _worker.logs.listen(_logWorkerBeeMessage);
     await _worker.spawn();
+    final initResponseFuture = _worker.stream.first;
     _worker.add(SecureStorageRequest.init(config: config));
-    await _worker.stream.first;
+    await initResponseFuture;
   });
 
   @override

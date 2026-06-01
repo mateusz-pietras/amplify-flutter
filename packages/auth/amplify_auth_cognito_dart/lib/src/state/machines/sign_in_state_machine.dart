@@ -124,8 +124,7 @@ final class SignInStateMachine
       previous = worker;
       try {
         await worker.ready.future;
-        // Listen before send: inline WASM workers (zIsWasm) process requests
-        // synchronously; subscribing after send drops events on the broadcast stream.
+        // Listen before send so a fast worker response cannot be dropped on the stream.
         final responseFuture = worker.stream.first;
         send(worker);
         return await responseFuture.timeout(
