@@ -103,6 +103,8 @@ final class SignInStateMachine
   /// alias where one or more user attributes can be used to identify a user.
   String get providedUsername => parameters.username;
 
+  static const _workerDispatchTimeout = Duration(seconds: 10);
+
   Future<R> _dispatchWorkerRequest<W extends WorkerBeeBase<Object, R>, R>({
     required Future<W> Function() spawnWorker,
     required void Function(W worker) send,
@@ -126,7 +128,12 @@ final class SignInStateMachine
         // synchronously; subscribing after send drops events on the broadcast stream.
         final responseFuture = worker.stream.first;
         send(worker);
-        return await responseFuture;
+        return await responseFuture.timeout(
+          _workerDispatchTimeout,
+          onTimeout: () {
+            throw StateError('SRP worker dispatch timed out');
+          },
+        );
       } on StateError catch (_) {
         await worker.close(force: true);
         if (attempt == maxAttempts - 1) {

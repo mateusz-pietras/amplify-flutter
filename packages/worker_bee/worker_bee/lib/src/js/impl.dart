@@ -155,7 +155,7 @@ mixin WorkerBeeImpl<Request extends Object, Response>
     }, onError: completeError);
   }
 
-  void _spawnInline({required bool allWorkerUrlsFailed}) {
+  Future<void> _spawnInline({required bool allWorkerUrlsFailed}) async {
     if (allWorkerUrlsFailed) {
       logger.debug(
         'All worker URLs failed. Running inline (single-threaded mode).',
@@ -165,7 +165,9 @@ mixin WorkerBeeImpl<Request extends Object, Response>
     // ignore: close_sinks
     final requestController = StreamController<Request>(sync: true);
     // ignore: close_sinks
-    final responseController = StreamController<Response>(sync: true);
+    final responseController = StreamController<Response>.broadcast(
+      sync: true,
+    );
 
     stream = responseController.stream;
     sink = requestController.sink;
@@ -177,7 +179,11 @@ mixin WorkerBeeImpl<Request extends Object, Response>
       ).then(complete, onError: completeError),
     );
 
-    ready.complete();
+    // Let [run] subscribe to the request stream before signaling ready.
+    await Future<void>.delayed(Duration.zero);
+    if (!ready.isCompleted) {
+      ready.complete();
+    }
   }
 
   @override
@@ -185,7 +191,7 @@ mixin WorkerBeeImpl<Request extends Object, Response>
   Future<void> spawn({String? jsEntrypoint}) async {
     return runTraced(() async {
       if (zIsWasm) {
-        _spawnInline(allWorkerUrlsFailed: false);
+        await _spawnInline(allWorkerUrlsFailed: false);
         return;
       }
 
@@ -363,7 +369,7 @@ mixin WorkerBeeImpl<Request extends Object, Response>
         }
       }
 
-      _spawnInline(allWorkerUrlsFailed: true);
+      await _spawnInline(allWorkerUrlsFailed: true);
     }, onError: completeError);
   }
 
